@@ -1,0 +1,10 @@
+# R temporary files
+.Rhistory
+.RData
+.docx
+
+# Data and results
+obselete/
+
+*.Rhistory
+*.tmp
