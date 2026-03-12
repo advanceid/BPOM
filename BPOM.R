@@ -3,6 +3,7 @@
 rm(list = ls())
 
 library(arm)
+library(gsDesign)
 library(lme4)
 library(magrittr)
 library(marginaleffects)
@@ -13,9 +14,9 @@ library(rstanarm)
 library(tidyverse)
 
 
+
 # Environment ----
-env <- ifelse(str_detect(getwd(), 'C:/'), 1,
-              2)
+env <- ifelse(str_detect(getwd(), 'C|D:/'), 1, 2)
 t0 <- Sys.time()
 
 if (env == 1){
@@ -45,7 +46,7 @@ patternS <- treatmentCombination %>%
   mutate(arm = str_remove(arm, "^\\d+\\.\\s*"),
          arm = str_trim(arm),
          groupT = ifelse(str_detect(arm, 'Colistin'), 'A',
-                         ifelse(str_detect(arm, 'Ceftazidime'),
+                         ifelse(str_detect(arm, 'Meropenem'),
                                 'B', 'C')),
          prob = recode(Organism, 
                        'CRAB' = 0.5,
@@ -66,21 +67,19 @@ if (env == 1){
   p1 <- 0.4
   p2 <- c(0.5, 0.45, 0.4, 0.38, 0.37, 0.36, 0.35)
   p3 <- 0.4
-  maxit = 1000
+  maxit <- 1000
+  nInterim <- 3
   } else if (env == 2){
     n_cores <- 100
     N_iteration <- 2000
     sampleSize <- seq(200, 1200, 20)
-    samplePrior <- c(300)
-    p1 <- 0.4
-    p2 <- c(0.5, 0.45, 0.4, 0.38, 0.37, 0.36, 0.35)
+    samplePrior <- 500
+    p1 <- c(0.5, 0.45, 0.4, 0.38, 0.37, 0.36, 0.35)
+    p2 <- 0.4
     p3 <- 0.4
-    maxit = 1000
+    maxit <- 1000
+    nInterim <- 3
     }
-
-
-alphaV <- 0.05
-zVal <- qnorm(1 - alphaV)
 
 scenario <- expand.grid(sampleSize = sampleSize,
                         samplePrior = samplePrior,
@@ -88,6 +87,7 @@ scenario <- expand.grid(sampleSize = sampleSize,
                         p2 = p2, 
                         p3 = p3) %>%
   mutate(scenarioID = paste0('scenario', row_number()))
+save(scenario, file = 'scenario.RData')
 
 
 
@@ -133,9 +133,8 @@ myTryCatch <- function(expr) {
 
 
 # Simulation engine ----
-simu <- function(scenario){
+simu <- function(scenario, comparator){
   for (i in 1:nrow(scenario)){
-    
     sampleSize <- scenario$sampleSize[i]
     samplePrior <- scenario$samplePrior[i]
     pattern <- patternS
@@ -154,10 +153,13 @@ simu <- function(scenario){
     
     dfRCT <- pattern[rep(1:nrow(pattern), pattern$allocation), ]
     dfRCT$death <- rbinom(n = nrow(dfRCT), size = 1, prob = dfRCT$mortality)
-    dfRCT %<>% filter(groupT %in% c('A', 'B'))
+    dfRCT %<>% slice_sample(prop = 1) %>%
+      mutate(slice = ntile(row_number(), nInterim))
+    dfRCT %<>% filter(groupT %in% c('A', comparator))
+    
     dfRCTPrior <- pattern[rep(1:nrow(pattern), pattern$allocationPrior), ]
     dfRCTPrior$death <- rbinom(n = nrow(dfRCTPrior), size = 1, prob = dfRCTPrior$mortality)
-    dfRCTPrior %<>% filter(groupT %in% c('A', 'B'))
+    dfRCTPrior %<>% filter(groupT %in% c('A', comparator))
     
     model <- myTryCatch(
       glm(death ~ groupT + Organism, family = binomial('identity'), 
@@ -179,41 +181,52 @@ simu <- function(scenario){
     prior <- normal(location = model_coef,
                     scale = rep(1, length(model_coef)))
     
-
-    model1 <- myTryCatch(bayesglm(
-      death ~ groupT + Organism, 
-      data = dfRCT, 
-      maxit = maxit,
-      prior.mean = model_coef[2:5],
-      prior.scale = 1,
-      prior.mean.for.intercept = model_coef[1],
-      prior.scale.for.intercept = 1,
-      family = binomial(link = "identity")
-    ))
-    res1 <- model1[[1]] %>% summary %>% coefficients %>% as.data.frame %>%
-      rownames_to_column("term") %>%
-      mutate(UL = Estimate + zVal*`Std. Error`) %>% mutate(model = 'bayesglm') %>%
-      dplyr::select(term, Estimate, UL, model)
-    
-    # model2 <- myTryCatch(stan_glm(death ~ groupT + Organism, 
-    #                               family = binomial(link = "logit"), 
-    #                               data = dfRCT))
-    # rd_results <- avg_comparisons(
-    #   model2[[1]], conf_level = (1 - 2*alphaV),
-    #   variables = c("groupT", 'Organism'))
-    # res2 <- rd_results %>% as.data.frame %>%
-    #   rename(UL = conf.high, Estimate = estimate) %>%
-    #   mutate(model = 'stanglm') %>% 
-    #   dplyr::select(term, Estimate, UL, model)
-    
-    model <- 
-      # rbind(res1, res2) %>% 
-      res1 %>%
-      mutate(scenarioID = scenario$scenarioID[i]) %>%
-      mutate(A = sum(dfRCT$groupT == 'A'),
-             B = sum(dfRCT$groupT == 'B'),
-             C = sum(dfRCT$groupT == 'C'))
-    assign(scenario$scenarioID[i], model)
+    for (interim in 1:nInterim){
+      dfInterim <- dfRCT %>% filter(slice <= interim)
+      
+      model1 <- myTryCatch(bayesglm(
+        death ~ groupT + Organism, 
+        data = dfInterim, 
+        maxit = maxit,
+        prior.mean = model_coef[2:5],
+        prior.scale = 1,
+        prior.mean.for.intercept = model_coef[1],
+        prior.scale.for.intercept = 1,
+        family = binomial(link = "identity")))
+      model2 <- myTryCatch(bayesglm(
+        death ~ groupT + Organism, 
+        data = dfInterim, 
+        maxit = maxit,
+        prior.mean = 0,
+        prior.scale = 1,
+        prior.mean.for.intercept = model_coef[1],
+        prior.scale.for.intercept = 1,
+        family = binomial(link = "identity")))
+      
+      if (!(is.null(model1$value)|is.null(model2$value))){
+      res1 <- model1[[1]] %>% summary %>% coefficients %>% as.data.frame %>%
+        rownames_to_column("term") %>% 
+        rename(zVal = 'z value', std = 'Std. Error') %>%
+        mutate(model = 'goodPrior',
+               interim = interim,
+               scenarioID = scenario$scenarioID[i],
+               interve = sum(dfInterim$groupT == 'A'),
+               control = sum(dfInterim$groupT == comparator))
+      
+      res2 <- model2[[1]] %>% summary %>% coefficients %>% as.data.frame %>%
+        rownames_to_column("term") %>% 
+        rename(zVal = 'z value', std = 'Std. Error') %>%
+        mutate(model = 'badPrior',
+               interim = interim,
+               scenarioID = scenario$scenarioID[i],
+               interve = sum(dfInterim$groupT == 'A'),
+               control = sum(dfInterim$groupT == comparator))
+      
+      res <- rbind(res1, res2)
+      assign(paste0(scenario$scenarioID[i], '-', interim), 
+             res)
+      }
+    }
   }
   resCoef <- ls(pattern = 'scenario[0-9]')
   resCoef <- mget(resCoef)
@@ -227,72 +240,64 @@ simu <- function(scenario){
 # Simulation ----
 results <- mclapply(1:N_iteration, function(i) {
   print(i)
-  simu(scenario)}, 
+  out1 <- simu(scenario, comparator = 'B')
+  out1$iteration_id <- i
+  out1$comparator <- 'B'
+  
+  out2 <- simu(scenario, comparator = 'C')
+  out2$iteration_id <- i
+  out2$comparator <- 'C'
+  return(list(out1 = out1, out2 = out2))
+  }, 
   mc.cores = n_cores)
 t1 <- Sys.time()
 
+save(results, file = 'final.RData')
 
-# Post processing ----
-final_results <- do.call(rbind, results)
-save(final_results, file = 'final.RData')
-load('final.RData')
+cat('Number of scenarios: ', nrow(scenario), '\n')
 print(t1 - t0)
 
+q()
 
-power <- final_results %>%
-  mutate(term = ifelse(term == 'groupT', 'groupTB', term),
-         Estimate = as.numeric(Estimate),
-         UL = as.numeric(UL),
-         A = as.numeric(A),
-         B = as.numeric(B)) %>% 
-  filter(term == 'groupTB', !is.na(Estimate)) %>%
-  group_by(scenarioID, model) %>%
-  summarise(nIteration = n(),
-            pos = sum(UL < 0.1),
-            ratePos = pos/nIteration,
-            mEs = mean(Estimate),
-            # merr = mean(sde),
-            nA = mean(A),
-            nB = mean(B),
-            nEff = nA + nB) %>%
+
+
+# Load data ----
+load('final.RData')
+load('scenario.RData')
+
+
+
+# Post-processing ----
+# Interim analysis O-Brien Fleming
+design <- gsDesign(k = 3, test.type = 1, alpha = 0.05, beta = 0.2,
+                   timing = c(0.33, 0.66, 1.0), sfu = 'OF', sfupar = 0)
+z_Val <- -design$upper$bound
+cat('Z values:', z_Val)
+
+final_data <- map(results, ~ bind_rows(.x$out1, .x$out2)) %>% 
+  bind_rows()
+
+
+resultSum <- final_data %>% filter(str_detect(term, 'groupT')) %>%
+  mutate(z_Val = ifelse(interim == 1, z_Val[1], 
+                        ifelse(interim == 2, z_Val[2],
+                               ifelse(interim == 3, z_Val[3], NA)))) %>%
+  filter(!is.na(z_Val)) %>%
+  group_by(comparator, model, scenarioID, iteration_id) %>%
+  mutate(count = n()) %>% filter(count == 3) %>%
+  mutate(LL = Estimate + z_Val*std,
+         pass = LL >= -0.1) %>%
+  summarise(positive = sum(pass) > 0) %>%
+  group_by(comparator, model, scenarioID) %>%
+  summarise(nPOS = sum(positive),
+            N_iteration = n(),
+            power = 100*nPOS/N_iteration) %>%
   left_join(scenario, by = 'scenarioID') %>%
-  mutate(
-    marginColiVBAT = p2 - p1,
-    marginColiVBAT = as.character(marginColiVBAT),
-    p2 = as.character(p2))
+  mutate(p1 = as.character(100*p1))
 
-write.csv(power, 'power.csv')
-power <- read.csv('power.csv')
-
-
-ggplot(data = power, aes(x = sampleSize, y = ratePos, group = marginColiVBAT)) +
-  geom_point(aes(col = marginColiVBAT)) +
-  geom_smooth(aes(col = marginColiVBAT)) +
-  geom_hline(yintercept = c(0.05, 0.80), linetype = 2) +
-  scale_x_continuous(breaks = seq(200, 1200, 100)) +
-  facet_wrap(~ model + samplePrior) 
-ggsave('Power-samplesize.tiff', dpi = 300, width = 12, height = 8)
-
-ggplot(data = power, aes(x = nEff, y = ratePos, group = p2)) +
-  geom_point(aes(col = p2)) +
-  geom_smooth(aes(col = p2)) +
-  geom_hline(yintercept = c(0.05, 0.80), linetype = 2) +
-  labs(x = 'True sample size') +
-  facet_wrap(~model)
-ggsave('Power-samplesizeTRUE.tiff', dpi = 300, width = 12, height = 8)
-
-
-
-upperBound <- final_results %>% rename(
-  estimate = Estimate,
-  sde = 'Std. Error') %>% mutate(
-    estimate = as.numeric(estimate),
-    sde = as.numeric(sde),
-    A = as.numeric(A),
-    B = as.numeric(B),
-    
-    ll = estimate - zVal*sde,
-    ul = estimate + zVal*sde)
-
-ggplot(data = upperBound, aes(x = sampleSize, y = ul)) +
-  geom_point()
+ggplot(data = resultSum, aes(x = sampleSize, y = power)) +
+  geom_point(aes(col = p1)) +
+  geom_hline(yintercept = c(5, 80), linetype = 2) + 
+  facet_wrap(comparator~model, ncol = 2) +
+  labs(x = 'Sample Size', y = 'Power (%)', col = 'Colistin mortality')
+ggsave('Power-SampleSize.tiff', dpi = 300, width = 15, height = 12)
