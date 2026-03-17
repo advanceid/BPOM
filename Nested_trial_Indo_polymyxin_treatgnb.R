@@ -96,7 +96,7 @@ n_e <- ceiling(n_c * ratio)
 
 total_ss <- sum(n_c, n_e)
 
-final_ss <- total_ss * 1.1
+final_ss <- ceiling(total_ss / 0.9)
 
 ####now check with ceftazidime arm 
 
@@ -110,10 +110,10 @@ n_e <- ceiling(n_c * ratio)
 
 total_ss <- sum(n_c, n_e)
 
-final_ss <- total_ss * 1.1 ##assume 10% loss - to -followup 
+final_ss <- ceiling(total_ss / 0.9) ##assume 10% loss - to -followup 
 
 
- 
+
 
 
 
