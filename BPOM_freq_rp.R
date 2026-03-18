@@ -44,11 +44,11 @@ patternS <- treatmentCombination %>%
   mutate(nInt = n())
 
   n_cores <- 1
-  N_iteration <- 20
+  N_iteration <- 1500
   sampleSize <- seq(200, 800, 40)
   samplePrior <- c(30, 100, 300)
-  p1 <- 0.4
-  p2 <- 0.38 #c(0.5, 0.45, 0.4, 0.38, 0.37, 0.36, 0.35) ##dont' need to bother 
+  p1 <- 0.38 #c(0.5, 0.45, 0.4, 0.38, 0.37, 0.36, 0.35) ##dont' need to bother 
+  p2 <- 0.4 
   p3 <- 0.4
   maxit <- 1000
   nInterim <- 3
