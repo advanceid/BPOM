@@ -1,4 +1,5 @@
 # Library ----
+rm(list = ls())
 library(dplyr)
 library(gsDesign)
 library(tidyr)
@@ -150,6 +151,10 @@ total_ss2S <- sum(n_c, n_e)
 
 
 # Final sample size ----
+design <- gsDesign(k = 3, test.type = 1, alpha = 0.05, beta = 0.2,
+                   timing = c(0.33, 0.66, 1.0), sfu = 'OF', sfupar = -4)
+inflation <- max(design$n.I)
+
 fss1 <- total_ss1/(total_p_poly + total_p_mero)
 fss2 <- total_ss2/(total_p_ceft + total_p_mero)
 fss1S <- total_ss1S/(total_p_poly + total_p_mero)
@@ -163,34 +168,31 @@ fss1S*inflation/0.9
 fss2S*inflation/0.9
 
 
-####now check with ceftazidime arm 
-ratio_val <- total_p_poly / total_p_ceft
-
-numerator <- (z_alpha + z_beta)^2 * ((p_exp * (1 - p_exp) / ratio_val) + (p_bat * (1 - p_bat)))
-denominator <- (p_exp - p_bat - margin)^2
-
-n_c <- ceiling(numerator / denominator)
-n_e <- ceiling(n_c * ratio_val)
-
-total_ss2 <- sum(n_c, n_e)
 
 
+# Power calculation ----
+fss1*(total_p_mero + total_p_ceft)
+nBinomial(p1 = 0.34, p2 = 0.41, 
+          delta0 = 0.1, 
+          alpha = 0.05, 
+          beta = 0.2, 
+          ratio = 1.34, 
+          sided = 1,
+          outtype = 1)
 
-### interim analysis 
-design <- gsDesign(k = 3, test.type = 1, alpha = 0.05, beta = 0.2,
-                   timing = c(0.33, 0.66, 1.0), sfu = 'OF', sfupar = -4)
-inflation <- max(design$n.I)
+nBinomial(p1 = 0.23, p2 = 0.41, 
+          delta0 = 0, 
+          alpha = 0.05, 
+          beta = 0.2, 
+          ratio = 1.34, 
+          sided = 2,
+          outtype = 1)
 
-
-final_ss1 <- total_ss1*inflation/(0.9*(total_p_poly + total_p_mero))
-final_ss1
-final_ss2 <- total_ss2*inflation/(0.9*(total_p_poly + total_p_ceft))
-final_ss2
-
-final_ss1 <- total_ss1/(0.9*(total_p_poly + total_p_mero))
-final_ss1
-
-total_ss1/((total_p_poly + total_p_mero))
-
-
-total_ss1/((total_p_poly + total_p_mero))
+total_ss1
+nBinomial(p1 = 0.245, p2 = 0.41, 
+          delta0 = 0, 
+          alpha = 0.05, 
+          beta = 0.2, 
+          ratio = 2.48, 
+          sided = 2,
+          outtype = 1)
