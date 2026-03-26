@@ -1,10 +1,12 @@
 # R temporary files
-.Rhistory
-.RData
-.docx
+*.Rhistory
+final.RData
+resultSum.RData
+*.docx
 
 # Data and results
 obselete/
+protocol/
 
 *.Rhistory
 *.tmp

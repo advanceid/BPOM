@@ -1,6 +1,9 @@
 library(dplyr)
 library(gsDesign)
 library(tidyr)
+library(tidyverse)
+library(magrittr)
+library(readxl)
 
 setwd( "D:/NUS Dropbox/Xiangyuan Huang/github/BPOM")
 
@@ -80,8 +83,9 @@ total_p_ceft <- sum(prevs$p_ceft)
 
   
   # Parameters for sample size calculation 
-p_exp <- 0.38      # Experimental arm mortality (38%)
-p_bat <- 0.40      # BAT (40%)
+p_exp <- 0.36      # Experimental arm mortality (38%)
+p_bat <- 0.41      # BAT (40%)
+p_ceft <- 0.36     # Cefta superior comparison
 margin <- 0.10     # noninf margin (10%, where higher is worse)
 alpha <- 0.05    #  one sided 
 power <- 0.8 #0.95      # power? this is what was used in prev simulations 
@@ -118,12 +122,15 @@ design <- gsDesign(k = 3, test.type = 1, alpha = 0.05, beta = 0.2,
 inflation <- max(design$n.I)
 
 
-final_ss1 <- total_ss2*inflation/(0.9*(total_p_poly + total_p_mero))
+final_ss1 <- total_ss1*inflation/(0.9*(total_p_poly + total_p_mero))
 final_ss1
 final_ss2 <- total_ss2*inflation/(0.9*(total_p_poly + total_p_ceft))
 final_ss2
 
+final_ss1 <- total_ss1/(0.9*(total_p_poly + total_p_mero))
+final_ss1
+
+total_ss1/((total_p_poly + total_p_mero))
 
 
-
-
+total_ss1/((total_p_poly + total_p_mero))
