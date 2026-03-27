@@ -1,6 +1,6 @@
 # R temporary files
 *.Rhistory
-final.RData
+final*.RData
 resultSum.RData
 *.docx
 

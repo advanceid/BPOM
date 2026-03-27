@@ -4,6 +4,7 @@ rm(list = ls())
 
 library(arm)
 library(boot)
+# library(future.apply)
 library(gsDesign)
 library(lme4)
 library(magrittr)
@@ -72,28 +73,32 @@ patternS <- treatmentCombination %>%
 
 # Scenario ----
 if (env == 1){
-  n_cores <- 1
-  N_iteration <- 20
-  sampleSize <- seq(200, 800, 40)
-  samplePrior <- c(30, 100, 400)
-  p1 <- 0.4
-  p2 <- c(0.5, 0.45, 0.4, 0.38, 0.37, 0.36, 0.35)
-  p3 <- 0.4
+  n_cores <- print(availableCores()) - 2
+  cat('Available CPUs: ', n_cores)
+  N_iteration <- 1000
+  sampleSize <- seq(1000, 3000, 1000)
+  samplePrior <- 3000
+  p1 <- c(0.31, 0.36)  # polymyxin
+  p2 <- c(0.41)                          # carbapenem
+  p3 <- c(0.21, 0.26, 0.31)        # cefta
+  # primary analysis: polymyxin versus carbapenem(BAT), non-inferirority, 10% margin
+  # secondary analysis: cefta versus polymyxin, non-inferiority, 10% margin
   maxit <- 1000
+  priorScale <- c(1, 0.5, 0.1)
   nInterim <- 3
 } else if (env == 2){
   n_cores <- print(availableCores()) - 2
   cat('Available CPUs: ', n_cores)
-  N_iteration <- 1500
-  sampleSize <- seq(1000, 3000, 200)
+  N_iteration <- 1000
+  sampleSize <- seq(500, 2500, 150)
   samplePrior <- 3000
-  p1 <- c(0.41, 0.42, 0.46, 0.51, 0.61)  # polymyxin
-  p2 <- c(0.51)                          # carbapenem
-  p3 <- c(0.31, 0.36, 0.41, 0.51)        # cefta
+  p1 <- c(0.31, 0.36)  # polymyxin
+  p2 <- c(0.41)                          # carbapenem
+  p3 <- c(0.21, 0.26, 0.31, 0.36)        # cefta
   # primary analysis: polymyxin versus carbapenem(BAT), non-inferirority, 10% margin
   # secondary analysis: cefta versus polymyxin, non-inferiority, 10% margin
   maxit <- 1000
-  priorScale <- c(1, 0.5, 0.1, 0.05)
+  priorScale <- c(1, 0.5, 0.1)
   nInterim <- 3
 }
 
@@ -357,7 +362,9 @@ simu <- function(scenario){
         # print(res1)
         # print(res2)
         # print(res4)
-        res <- rbind(res1, res2, res4)
+        res <- rbind(res1, res2, res4) %>%
+          mutate(nA = sum(dfRCT$groupT == 'A'),
+                 nB = sum(dfRCT$groupT == 'B'))
         # print(res)
         assign(paste0(scenario$scenarioID[i], '-', interim), 
                res)
@@ -393,6 +400,27 @@ print(t1 - t0)
 q()
 
 
+
+# Windows parallelization ----
+# N_iteration <- 
+cat("\nStarting Parallel Simulation: ", N_iteration, " iterations per scenario.\n")
+plan(multisession, workers = max(1, n_cores))
+
+t0 <- Sys.time()
+all_results_list <- list()
+scenario_iterations <- future_lapply(1:N_iteration, function(x) {
+  # Call your existing simu function for just this one scenario row
+  cat(x, ":", Sys.time())
+  res <- simu(scenario)
+  
+  # Add an iteration ID column so you can distinguish them later
+  if (!is.null(res)) res$iteration <- x
+  return(res)
+}, future.seed = TRUE) # Essential for valid random numbers in parallel
+
+result <- do.call(rbind, scenario_iterations)
+t1 <- Sys.time()
+t1 - t0
 
 # Load data ----
 load('results/final.RData')
