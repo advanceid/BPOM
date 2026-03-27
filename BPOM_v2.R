@@ -458,14 +458,46 @@ resultSum %<>% mutate(
   arrange(mortalityPoly, mortalityCeft)
 save(resultSum, file = 'results/scenarioPower.RDtata')  
 
-for (modelIndex in unique(resultSum$model)){
-  print(modelIndex)
-  resultSum %>% filter(model == modelIndex) %>%
-    ggplot(data = ., aes(x = sampleSize, y = power)) +
-    geom_point(aes(shape = priorScale, col = priorScale)) +
-    geom_hline(yintercept = c(5, 80), linetype = 2) +
-    facet_wrap(~mortalityPoly+mortalityCeft, ncol = 4) +
-    labs(x = 'Sample Size', y = 'Power (%)', col = 'Prior Scale', shape = 'Prior Scale')
-  ggsave(paste0('results/Power-SampleSize', modelIndex, '.tiff'),
-         dpi = 300, width = 15, height = 12)
-}
+
+# Plot 
+resultSum %>% filter(model == 'goodPrior') %>% 
+  arrange(p1, p2, priorScale, sampleSize) %>% 
+  group_by(p1, p2, priorScale, sampleSize) %>% 
+  summarise(power = 100*sum(nPOS)/sum(N_iteration),
+            N_iteration = sum(N_iteration)) %>%
+  mutate(mortalityPoly = paste0('Poly - BAT = ', 100*(p1 - p2), '%')) %>%
+  ggplot(data = ., aes(x = sampleSize, y = power)) +
+  geom_point(aes(shape = priorScale, col = priorScale)) +
+  geom_hline(yintercept = c(5, 80), linetype = 2) +
+  facet_wrap(~mortalityPoly, ncol = 4) +
+  labs(x = 'Sample Size', y = 'Power (%)', col = 'Prior Scale', shape = 'Prior Scale')
+ggsave(paste0('results/Power-SampleSize', 'goodPrior', '.tiff'),
+       dpi = 300, width = 15, height = 12)
+
+resultSum %>% filter(model == 'badPrior') %>% 
+  arrange(p1, p2, priorScale, sampleSize) %>% 
+  group_by(p1, p2, priorScale, sampleSize) %>% 
+  summarise(power = 100*sum(nPOS)/sum(N_iteration),
+            N_iteration = sum(N_iteration)) %>%
+  mutate(mortalityPoly = paste0('Poly - BAT = ', 100*(p1 - p2), '%')) %>%
+  ggplot(data = ., aes(x = sampleSize, y = power)) +
+  geom_point(aes(shape = priorScale, col = priorScale)) +
+  geom_hline(yintercept = c(5, 80), linetype = 2) +
+  facet_wrap(~mortalityPoly, ncol = 4) +
+  labs(x = 'Sample Size', y = 'Power (%)', col = 'Prior Scale', shape = 'Prior Scale')
+ggsave(paste0('results/Power-SampleSize', 'badPrior', '.tiff'),
+       dpi = 300, width = 15, height = 12)
+
+resultSum %>% filter(model == 'CVP') %>% 
+  arrange(p1, p3, priorScale, sampleSize) %>% 
+  group_by(p1, p3, priorScale, sampleSize) %>% 
+  summarise(power = 100*sum(nPOS)/sum(N_iteration),
+            N_iteration = sum(N_iteration)) %>%
+  # mutate(mortalityCeft = paste0('Ceft - Poly = ', 100*(p3 - p1), '%')) %>%
+  ggplot(data = ., aes(x = sampleSize, y = power)) +
+  geom_point(aes(shape = priorScale, col = priorScale)) +
+  geom_hline(yintercept = c(5, 80), linetype = 2) +
+  facet_wrap(~p1+p3, ncol = 4) +
+  labs(x = 'Sample Size', y = 'Power (%)', col = 'Prior Scale', shape = 'Prior Scale')
+ggsave(paste0('results/Power-SampleSize', 'CVP', '.tiff'),
+       dpi = 300, width = 15, height = 12)
