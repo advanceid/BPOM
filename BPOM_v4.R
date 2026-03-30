@@ -85,7 +85,6 @@ if (env == 1){
   # secondary analysis: cefta versus polymyxin, non-inferiority, 10% margin
   maxit <- 1000
   priorSet <- c('skeptical', 'optimistic', 'noninformative')
-  interimMethod <- c('fixed', 'dynamic')   
   nInterim <- 3
 } else if (env == 2){
   n_cores <- print(availableCores()) - 2
@@ -100,7 +99,6 @@ if (env == 1){
   # secondary analysis: cefta versus polymyxin, non-inferiority, 10% margin
   maxit <- 1000
   priorSet <- c('skeptical', 'optimistic', 'noninformative')
-  interimMethod <- c('fixed', 'dynamic')   
   # fixed: sticking to the same priors; dynamic: updating prior every interim analysis
   nInterim <- 3
 }
