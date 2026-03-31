@@ -244,7 +244,7 @@ simu <- function(scenario){
       model_coefPrior <- summary(modelPrior$value)$coefficients %>% 
         as.data.frame %>% rownames_to_column()
       
-      model_coef %<>% rows_update(model_coefPrior, by = 'rowname')
+      model_coef %<>% rows_update(model_coefPrior, by = 'rowname', unmatched = "ignore")
       if(scenario$priorSet[i] == 'skeptical'){
         model_coef$Estimate[str_detect(model_coef$rowname, 'groupT')] <- 0
         model_coef$`Std. Error` <- 1
@@ -288,7 +288,7 @@ simu <- function(scenario){
           as.data.frame() %>%
           rownames_to_column("rowname") %>%
           select(rowname, Estimate, `Std. Error`)
-        current_prior %<>% rows_update(new_stats, by = 'rowname')
+        current_prior %<>% rows_update(new_stats, by = 'rowname', unmatched = "ignore")
 
         
         # Secondary analysis
@@ -372,7 +372,13 @@ load('results/scenario.RData')
 
 
 # Post-processing ----
-final_data <- results %>% map_dfr(~ .x$out1)
+final_data <- results %>%
+  keep(~ !inherits(.x, "try-error")) %>%
+  map_dfr(~ .x$out1)
+
+# z_ValS <- z_Val
+# z_Val <- z_ValS
+z_Val <- c(-1.96, -1.96, -1.96)
 
 resultSum <- final_data %>% filter(str_detect(term, 'groupT')) %>%
   mutate(zThreshold = ifelse(interim == 1, z_Val[1], 
@@ -409,6 +415,8 @@ PVB %>% mutate(mortalityPoly = paste0('Poly - BAT = ', 100*(p1 - p2), '%')) %>%
   geom_point(aes(shape = priorSet, col = priorSet)) +
   geom_hline(yintercept = c(5, 80), linetype = 2) +
   facet_wrap(~mortalityPoly+model, ncol = 2) 
+ggsave('results/PVB-GLO-975.tiff', dpi = 300, height = 15, width = 10)
+
   
 # sample size of polymyxin+BAT and power
 PVB %>% mutate(mortalityPoly = paste0('Poly - BAT = ', 100*(p1 - p2), '%'),
@@ -416,19 +424,25 @@ PVB %>% mutate(mortalityPoly = paste0('Poly - BAT = ', 100*(p1 - p2), '%'),
   ggplot(data = ., aes(x = sampleSizePB, y = power)) + 
   geom_point(aes(shape = priorSet, col = priorSet)) +
   geom_hline(yintercept = c(5, 80), linetype = 2) +
-  facet_wrap(~mortalityPoly+model, ncol = 2) 
+  facet_wrap(~mortalityPoly+model, ncol = 2)
+ggsave('results/PVB-IND-975.tiff', dpi = 300, height = 15, width = 10)
+
 
 
 # sample size and power for ceft versus power 
 CVP <- resultSum %>% filter(model == 'CVP') %>%
-  arrange(model, priorSet, p1, p3, sampleSize) %>% 
-  group_by(model, priorSet, p1, p3, sampleSize) %>%
+  arrange(p1, p3, sampleSize) %>% 
+  group_by(p1, p3, sampleSize) %>%
   summarise(N_iteration = sum(N_iteration),
             nPOS = sum(nPOS),
-            power = 100*nPOS/N_iteration)
+            power = 100*nPOS/N_iteration) %>%
+  mutate(
+    p1 = paste0('mortality Poly: ', p1),
+    p2 = paste0('mortality Ceft: ', p3))
 
-CVP %>% mutate(mortalityCeft = paste0('Ceft - BAT = ', 100*(p3 - p1), '%')) %>%
+CVP %>% 
   ggplot(data = ., aes(x = sampleSize, y = power)) + 
-  geom_point(aes(shape = priorSet, col = priorSet)) +
+  geom_point() +
   geom_hline(yintercept = c(5, 80), linetype = 2) +
-  facet_wrap(~mortalityPoly+model, ncol = 2) 
+  facet_wrap(~p1+p3, ncol = 4) 
+ggsave('results/CVP-GLO-OBF.tiff', dpi = 300, height = 15, width = 10)

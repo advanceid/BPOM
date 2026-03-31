@@ -7,6 +7,7 @@ resultSum.RData
 # Data and results
 obselete/
 protocol/
+cmdstan/
 
 *.Rhistory
 *.tmp

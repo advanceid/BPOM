@@ -103,9 +103,9 @@ if (env == 1){
 } else if (env == 2){
   n_cores <- print(availableCores()) - 2
   cat('Available CPUs: ', n_cores, '\n')
-  N_iteration <- 30
+  N_iteration <- 1000
   sampleSize <- seq(800, 2000, 300)
-  samplePVB <- sampleSize*0.2*0.72
+  # samplePVB <- sampleSize*0.2*0.72
   samplePrior <- 3000
   p1 <- c(0.31, 0.36, 0.41)  # polymyxin
   p2 <- c(0.41)                          # carbapenem
