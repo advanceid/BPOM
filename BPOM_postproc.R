@@ -8,7 +8,7 @@ library(tidyr)
 library(tidyverse)
 
 
-threshold <- c(0.99, 0.99, 0.95)   
+threshold <- c(0.95, 0.95, 0.95)   
 # Defining thresholds of significance for interim analysis 1, 2 and 3
 
 
@@ -71,6 +71,7 @@ for (i in 1:length(posterior)){
 dfPassP <- dfPass %>% mutate(
   across(c(interim, iteration), parse_number),
   model = str_replace_all(model, '-', ''),
+  model = ifelse(model == 'm1', 'dynamic', 'fixed'),
   scenarioID = str_replace(scenarioID, '-', ''),
   threshold = ifelse(interim == 1, threshold[1],
                      ifelse(interim == 2, threshold[2],
